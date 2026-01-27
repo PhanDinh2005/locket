@@ -1,0 +1,11 @@
+# .gitignore for .NET
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+appsettings.Development.json
+LocketServer/wwwroot/uploads/*
+!LocketServer/wwwroot/uploads/.gitkeep
