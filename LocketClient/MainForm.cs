@@ -35,7 +35,7 @@ namespace LocketClient
 
         public MainForm()
         {
-            this.Text = $"Locket- {LoginForm.CurrentUser.FullName}";
+            this.Text = $"Locket - {LoginForm.CurrentUser.FullName}";
             this.Size = new Size(550, 800); // Chỉnh lại size cho vừa vặn điện thoại hơn
             this.StartPosition = FormStartPosition.CenterScreen;
 

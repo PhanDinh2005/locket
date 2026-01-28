@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LocketServer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4b23295aa69bf7f3a2d8ed3ba948cf90bc854699")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4af8d8996e85dfb31a6b946f153d8a495371b7e0")]
 [assembly: System.Reflection.AssemblyProductAttribute("LocketServer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LocketServer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -19,10 +19,10 @@ namespace LocketClient
 
         public LoginForm()
         {
-            this.Text = "Locket Fake - Login";
-            this.Size = new System.Drawing.Size(320, 400); // Tăng size xíu cho thoáng
+            this.Text = "Locket - Login";
+            this.Size = new System.Drawing.Size(320, 400); 
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle; // Cố định khung cho đẹp
+            this.FormBorderStyle = FormBorderStyle.FixedSingle; // Cố định khung 
             this.MaximizeBox = false;
 
             // UI Elements
@@ -35,7 +35,7 @@ namespace LocketClient
             Label lblName = new Label { Text = "Họ Tên (Nếu Đăng ký):", Top = 160, Left = 30, AutoSize = true };
             txtName = new TextBox { Top = 185, Left = 30, Width = 240, Font = new Font("Segoe UI", 10) };
 
-            // Nút Đăng Nhập (Màu Vàng Locket)
+            // Nút Đăng Nhập
             btnLogin = new RoundedButton
             {
                 Text = "Đăng Nhập",
@@ -47,7 +47,7 @@ namespace LocketClient
                 ForeColor = Color.Black
             };
 
-            // Nút Đăng Ký (Màu Trắng/Xám)
+            // Nút Đăng Ký 
             btnRegister = new RoundedButton
             {
                 Text = "Đăng Ký",
