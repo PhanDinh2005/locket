@@ -1,5 +1,6 @@
 using System;
 using System.Drawing; // Cần thiết cho màu sắc
+using System.IO; // <--- MỚI: Thêm thư viện để đọc file
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -20,7 +21,7 @@ namespace LocketClient
         public LoginForm()
         {
             this.Text = "Locket - Login";
-            this.Size = new System.Drawing.Size(320, 400); 
+            this.Size = new System.Drawing.Size(320, 400);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle; // Cố định khung 
             this.MaximizeBox = false;
@@ -62,12 +63,14 @@ namespace LocketClient
             this.Controls.AddRange(new Control[] { lblPhone, txtPhone, lblPass, txtPass, lblName, txtName, btnLogin, btnRegister });
 
             // --- KÍCH HOẠT DARK MODE ---
-            // (Yêu cầu phải có file UIHelper.cs mình đã đưa trước đó)
             try { UIStyle.ApplyDarkMode(this); } catch { /* Bỏ qua nếu chưa có UIHelper */ }
 
-            // Logic Kết Nối
+            // --- [CẬP NHẬT MỚI] LOGIC KẾT NỐI ĐỘNG (FILE CONFIG) ---
+            string serverIp = GetServerIp(); // Lấy IP từ file text
+            string connectionUrl = $"http://{serverIp}:5000/lockethub"; // Ghép link
+
             Connection = new HubConnectionBuilder()
-                .WithUrl("http://localhost:5000/lockethub")
+                .WithUrl(connectionUrl) // Dùng link động
                 .WithAutomaticReconnect()
                 .Build();
 
@@ -78,17 +81,36 @@ namespace LocketClient
             ConnectToServer();
         }
 
+        // --- [CẬP NHẬT MỚI] HÀM ĐỌC IP TỪ FILE ---
+        private string GetServerIp()
+        {
+            try
+            {
+                // Tìm file server_ip.txt nằm cùng thư mục với file .exe
+                string path = Path.Combine(Application.StartupPath, "server_ip.txt");
+
+                if (File.Exists(path))
+                {
+                    string ip = File.ReadAllText(path).Trim();
+                    if (!string.IsNullOrEmpty(ip)) return ip;
+                }
+            }
+            catch { }
+            return "localhost"; // Mặc định nếu không có file
+        }
+
         private async void ConnectToServer()
         {
             try
             {
                 await Connection.StartAsync();
-                // Tắt thông báo popup đỡ phiền, chỉ in ra console debug
                 System.Diagnostics.Debug.WriteLine("Đã kết nối Server!");
             }
             catch
             {
-                MessageBox.Show("Không thể kết nối Server! Hãy kiểm tra lại backend.");
+                // Thông báo rõ ràng hơn kèm IP đang thử kết nối
+                string currentIp = GetServerIp();
+                MessageBox.Show($"Không thể kết nối đến Server ({currentIp})!\nHãy kiểm tra file server_ip.txt hoặc xem Server đã bật chưa.");
             }
         }
 

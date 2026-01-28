@@ -690,6 +690,25 @@ namespace LocketClient
             tab.Controls.AddRange(new Control[] { btnCapture, picPreview, txtCaption, btnPost });
         }
 
+        // 1. Hàm đọc IP từ file cấu hình (Copy y hệt bên LoginForm sang)
+        private string GetServerIp()
+        {
+            try
+            {
+                // Tìm file server_ip.txt cùng thư mục với file .exe
+                string path = Path.Combine(Application.StartupPath, "server_ip.txt");
+
+                if (File.Exists(path))
+                {
+                    string ip = File.ReadAllText(path).Trim();
+                    if (!string.IsNullOrEmpty(ip)) return ip;
+                }
+            }
+            catch { }
+            return "localhost"; // Mặc định là localhost
+        }
+
+        // 2. Hàm UploadFile đã sửa (Dùng IP động)
         private async Task<string> UploadFile(string filePath)
         {
             using (var client = new HttpClient())
@@ -700,12 +719,24 @@ namespace LocketClient
                     {
                         var fileStream = File.OpenRead(filePath);
                         content.Add(new StreamContent(fileStream), "file", Path.GetFileName(filePath));
-                        var response = await client.PostAsync("http://localhost:5000/upload", content);
+
+                        // --- [SỬA ĐOẠN NÀY] ---
+                        string ip = GetServerIp(); // Lấy IP từ file text
+                        string uploadUrl = $"http://{ip}:5000/upload"; // Ghép thành link động
+                                                                       // ----------------------
+
+                        var response = await client.PostAsync(uploadUrl, content);
+
                         if (!response.IsSuccessStatusCode) return null;
+
                         var result = await response.Content.ReadFromJsonAsync<UploadResult>();
                         return result.Url;
                     }
-                    catch { return null; }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Lỗi upload ảnh: " + ex.Message);
+                        return null;
+                    }
                 }
             }
         }
