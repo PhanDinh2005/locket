@@ -1,6 +1,6 @@
-# BÁO CÁO ĐỒ ÁN LẬP TRÌNH MẠNG
+# BÁO CÁO LẬP TRÌNH MẠNG
 
-## ĐỀ TÀI: XÂY DỰNG ỨNG DỤNG MẠNG XÃ HỘI CHIA SẺ ẢNH (LOCKET CLONE)
+## ĐỀ TÀI: XÂY DỰNG ỨNG DỤNG MẠNG XÃ HỘI CHIA SẺ ẢNH (LOCKET)
 
 ---
 
