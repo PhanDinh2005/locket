@@ -1,6 +1,6 @@
 using System;
-using System.Drawing; // Cần thiết cho màu sắc
-using System.IO; // <--- MỚI: Thêm thư viện để đọc file
+using System.Drawing;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -11,13 +11,9 @@ namespace LocketClient
     public class LoginForm : Form
     {
         private TextBox txtPhone, txtPass, txtName;
-        // Dùng RoundedButton thay vì Button thường
         private RoundedButton btnLogin, btnRegister;
-
-        // HubConnection để kết nối Server
         public static HubConnection Connection;
         public static User CurrentUser;
-
         public LoginForm()
         {
             this.Text = "Locket - Login";
@@ -35,7 +31,6 @@ namespace LocketClient
 
             Label lblName = new Label { Text = "Họ Tên (Nếu Đăng ký):", Top = 160, Left = 30, AutoSize = true };
             txtName = new TextBox { Top = 185, Left = 30, Width = 240, Font = new Font("Segoe UI", 10) };
-
             // Nút Đăng Nhập
             btnLogin = new RoundedButton
             {
@@ -47,7 +42,6 @@ namespace LocketClient
                 BackColor = Color.Gold,
                 ForeColor = Color.Black
             };
-
             // Nút Đăng Ký 
             btnRegister = new RoundedButton
             {
@@ -59,34 +53,24 @@ namespace LocketClient
                 BackColor = Color.LightGray,
                 ForeColor = Color.Black
             };
-
             this.Controls.AddRange(new Control[] { lblPhone, txtPhone, lblPass, txtPass, lblName, txtName, btnLogin, btnRegister });
-
-            // --- KÍCH HOẠT DARK MODE ---
-            try { UIStyle.ApplyDarkMode(this); } catch { /* Bỏ qua nếu chưa có UIHelper */ }
-
-            // --- [CẬP NHẬT MỚI] LOGIC KẾT NỐI ĐỘNG (FILE CONFIG) ---
-            string serverIp = GetServerIp(); // Lấy IP từ file text
-            string connectionUrl = $"http://{serverIp}:5000/lockethub"; // Ghép link
+            try { UIStyle.ApplyDarkMode(this); } catch { }
+            string serverIp = GetServerIp();
+            string connectionUrl = $"http://{serverIp}:5000/lockethub";
 
             Connection = new HubConnectionBuilder()
-                .WithUrl(connectionUrl) // Dùng link động
+                .WithUrl(connectionUrl)
                 .WithAutomaticReconnect()
                 .Build();
 
             btnLogin.Click += async (s, e) => await Login();
             btnRegister.Click += async (s, e) => await Register();
-
-            // Kết nối socket ngay khi mở app
             ConnectToServer();
         }
-
-        // --- [CẬP NHẬT MỚI] HÀM ĐỌC IP TỪ FILE ---
         private string GetServerIp()
         {
             try
             {
-                // Tìm file server_ip.txt nằm cùng thư mục với file .exe
                 string path = Path.Combine(Application.StartupPath, "server_ip.txt");
 
                 if (File.Exists(path))
@@ -96,7 +80,7 @@ namespace LocketClient
                 }
             }
             catch { }
-            return "localhost"; // Mặc định nếu không có file
+            return "localhost";
         }
 
         private async void ConnectToServer()
@@ -108,7 +92,6 @@ namespace LocketClient
             }
             catch
             {
-                // Thông báo rõ ràng hơn kèm IP đang thử kết nối
                 string currentIp = GetServerIp();
                 MessageBox.Show($"Không thể kết nối đến Server ({currentIp})!\nHãy kiểm tra file server_ip.txt hoặc xem Server đã bật chưa.");
             }
@@ -129,7 +112,7 @@ namespace LocketClient
                 {
                     CurrentUser = user;
                     this.Hide();
-                    new MainForm().ShowDialog(); // Mở màn hình chính
+                    new MainForm().ShowDialog();
                     this.Close();
                 }
                 else MessageBox.Show("Sai tài khoản hoặc mật khẩu!");

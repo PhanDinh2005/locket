@@ -27,14 +27,14 @@ namespace Shared
         // Thay đổi quan trọng: Lưu danh sách người like thay vì chỉ số lượng
         public List<string> LikedBy { get; set; } = new List<string>();
 
-        // Helper để lấy số lượng (cho tiện hiển thị)
+        // Helper để lấy số lượng
         public int LikeCount => LikedBy.Count;
     }
 
     public class Message
     {
         public string FromUser { get; set; } // SĐT người gửi
-        public string SenderName { get; set; } // Tên người gửi (Mới)
+        public string SenderName { get; set; } // Tên người gửi
         public string ToUser { get; set; } // SĐT người nhận
         public string Content { get; set; }
         public string FileUrl { get; set; }

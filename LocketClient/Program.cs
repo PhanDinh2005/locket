@@ -11,8 +11,6 @@ namespace LocketClient
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-
-            // Chạy Form đăng nhập trước
             Application.Run(new LoginForm());
         }
     }

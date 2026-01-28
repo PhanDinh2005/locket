@@ -64,14 +64,13 @@ namespace LocketClient
 
         private static void ApplyStyle(Control c)
         {
-            // SỬA LỖI Ở ĐÂY: Dùng "is TextBox tb" để tạo biến tb
             if (c is TextBox tb)
             {
                 tb.BackColor = Color.FromArgb(40, 40, 40);
                 tb.ForeColor = Color.White;
-                tb.BorderStyle = BorderStyle.FixedSingle; // Giờ dùng biến "tb" mới chỉnh được BorderStyle
+                tb.BorderStyle = BorderStyle.FixedSingle; 
             }
-            else if (c is ListBox lb) // Tương tự với ListBox
+            else if (c is ListBox lb) 
             {
                 lb.BackColor = Color.FromArgb(30, 30, 30);
                 lb.ForeColor = Color.White;
