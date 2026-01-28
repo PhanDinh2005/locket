@@ -11,6 +11,8 @@ namespace Shared
         public string AvatarUrl { get; set; }
         // Danh sách SĐT bạn bè
         public List<string> Friends { get; set; } = new List<string>();
+        // Danh sách lưu SĐT những người gửi lời mời kết bạn
+        public List<string> FriendRequests { get; set; } = new List<string>();
     }
 
     public class Post

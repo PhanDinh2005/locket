@@ -19,7 +19,8 @@ namespace LocketClient
         private FlowLayoutPanel feedPanel;
 
         // Chat Components (Giao diện Messenger)
-        private ListBox listFriends; // Danh sách bạn bên trái
+        private ListBox listFriends; // Danh sách bạn bên trái 
+        private FlowLayoutPanel pnlRequests;
         private Panel chatAreaPanel; // Khu vực chat bên phải
         private FlowLayoutPanel messageHistoryPanel; // Nơi hiện tin nhắn
         private TextBox txtChatInput;
@@ -94,67 +95,148 @@ namespace LocketClient
 
         private async void LoadInitialData()
         {
-            // 1. Tải bài đăng cũ
-            await LoginForm.Connection.InvokeAsync("GetPosts");
+            // 1. Lấy bài đăng (Truyền SĐT mình lên để lọc bài bạn bè)
+            await LoginForm.Connection.InvokeAsync("GetPosts", LoginForm.CurrentUser.PhoneNumber);
 
-            // 2. Tải danh sách bạn bè (Nếu User đăng nhập đã có bạn)
+            // 2. Tải danh sách bạn bè
             if (LoginForm.CurrentUser.Friends != null)
             {
                 UpdateFriendListUI(LoginForm.CurrentUser.Friends);
             }
+
+            // 3. Tải danh sách lời mời kết bạn đang chờ (Tính năng mới)
+            await LoginForm.Connection.InvokeAsync("GetFriendRequests", LoginForm.CurrentUser.PhoneNumber);
         }
 
         private void RegisterSignalREvents()
         {
-            // Nhận bài đăng mới
-            LoginForm.Connection.On<Post>("ReceivePost", (post) => this.Invoke((MethodInvoker)(() => AddPostToFeed(post))));
+            // 1. NHẬN BÀI ĐĂNG MỚI (Real-time)
+            LoginForm.Connection.On<Post>("ReceivePost", (post) =>
+            {
+                this.Invoke((MethodInvoker)(() =>
+                {
+                    AddPostToFeed(post);
+                }));
+            });
 
-            // Nhận danh sách bài cũ
+            // 2. NHẬN DANH SÁCH BẠN BÈ (Sửa lỗi trùng lặp và lỗi trắng màn hình)
+            LoginForm.Connection.On<List<string>>("UpdateFriendList", (friends) =>
+            {
+                this.Invoke((MethodInvoker)(async () =>
+                {
+                    // Cập nhật danh sách bên trái
+                    UpdateFriendListUI(friends);
+
+                    // Gọi Server lấy Feed mới (nhưng KHÔNG xóa feed cũ ngay ở đây)
+                    await LoginForm.Connection.InvokeAsync("GetPosts", LoginForm.CurrentUser.PhoneNumber);
+
+                    // Thông báo nhẹ (Tùy chọn, mình tạm bỏ MessageBox để đỡ phiền)
+                    // MessageBox.Show("Đã cập nhật danh sách bạn bè!");
+                }));
+            });
+
+            // 3. NHẬN DỮ LIỆU LỊCH SỬ FEED (QUAN TRỌNG - Bị thiếu cái này nên Feed mới trống)
             LoginForm.Connection.On<List<Post>>("LoadHistoryPosts", (posts) =>
             {
                 this.Invoke((MethodInvoker)(() =>
                 {
+
+                    // Dữ liệu đã về tới nơi -> Bây giờ XÓA CŨ đi là an toàn nhất
                     feedPanel.Controls.Clear();
-                    foreach (var p in posts) AddPostToFeed(p);
+
+                    // Vẽ lại toàn bộ bài mới
+                    foreach (var p in posts)
+                    {
+                        AddPostToFeed(p);
+                    }
                 }));
             });
 
-            // Nhận Like update (kèm danh sách người like để tô màu nút)
+            // 4. NHẬN UPDATE LIKE (Tim nhảy số)
             LoginForm.Connection.On<Guid, int, List<string>>("UpdateLike", (id, count, likedBy) =>
             {
                 this.Invoke((MethodInvoker)(() => UpdateLikeUI(id, count, likedBy)));
             });
 
-            // Nhận tin nhắn
+            // 5. NHẬN TIN NHẮN (Kèm thông báo Popup)
             LoginForm.Connection.On<Shared.Message>("ReceiveMessage", (msg) =>
             {
-                this.Invoke((MethodInvoker)(() => ProcessIncomingMessage(msg)));
+                this.Invoke((MethodInvoker)(() =>
+                {
+                    // Luôn xử lý chat vào khung
+                    ProcessIncomingMessage(msg);
+
+                    // LOGIC THÔNG BÁO POPUP:
+                    // Nếu tin nhắn KHÔNG PHẢI của mình gửi
+                    if (msg.FromUser != LoginForm.CurrentUser.PhoneNumber)
+                    {
+                        // Nếu đang KHÔNG ở tab Messenger HOẶC đang chat với người khác
+                        if (tabs.SelectedTab.Text != "Messenger" || currentChatPartnerPhone != msg.FromUser)
+                        {
+                            ShowInAppNotification(msg); // Gọi hàm hiện thông báo góc màn hình
+                        }
+                    }
+                }));
             });
 
-            // Cập nhật danh sách bạn bè khi có bạn mới
-            LoginForm.Connection.On<List<string>>("UpdateFriendList", (friends) =>
+            // 6. NHẬN LỆNH XÓA BÀI (Real-time)
+            LoginForm.Connection.On<Guid>("PostDeleted", (deletedId) =>
             {
-                this.Invoke((MethodInvoker)(() => UpdateFriendListUI(friends)));
+                this.Invoke((MethodInvoker)(() =>
+                {
+                    Control[] found = feedPanel.Controls.Find(deletedId.ToString(), false);
+                    if (found.Length > 0)
+                    {
+                        feedPanel.Controls.Remove(found[0]);
+                        found[0].Dispose();
+                    }
+                }));
+            });
+            // ... (các sự kiện cũ giữ nguyên)
+
+            // 7. [MỚI] Nhận lời mời Real-time
+            LoginForm.Connection.On<string, string>("ReceiveFriendRequest", (phone, name) =>
+            {
+                this.Invoke((MethodInvoker)(() =>
+                {
+                    MessageBox.Show($"Bạn nhận được lời mời kết bạn từ {name}!");
+                    AddRequestToUI(phone, name);
+                }));
+            });
+
+            // 8. [MỚI] Load danh sách lời mời (khi mới mở app)
+            LoginForm.Connection.On<List<string>>("LoadFriendRequests", (listRequests) =>
+            {
+                this.Invoke((MethodInvoker)(async () =>
+                {
+                    pnlRequests.Controls.Clear();
+                    foreach (var phone in listRequests)
+                    {
+                        // Lấy tên người gửi
+                        string name = await LoginForm.Connection.InvokeAsync<string>("GetUserName", phone);
+                        AddRequestToUI(phone, name);
+                    }
+                }));
             });
         }
 
         // --- GIAO DIỆN MESSENGER (KIỂU TÁCH BẠN BÈ) ---
         private void SetupMessengerTab(TabPage tab)
         {
-            // Chia màn hình làm 2
             SplitContainer split = new SplitContainer
             {
                 Dock = DockStyle.Fill,
-                SplitterDistance = 200, // Cột danh sách bạn bè nhỏ lại chút
-                BackColor = Color.FromArgb(24, 24, 24) // Màu nền của thanh chia cắt
+                SplitterDistance = 220, // Rộng hơn chút để hiện nút Đồng ý
+                BackColor = Color.FromArgb(24, 24, 24)
             };
 
-            // --- CỘT TRÁI: DANH SÁCH BẠN ---
+            // --- CỘT TRÁI ---
             Panel leftPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5), BackColor = Color.FromArgb(30, 30, 30) };
 
+            // 1. Nút Thêm Bạn (Ở trên cùng)
             RoundedButton btnAddFriend = new RoundedButton
             {
-                Text = "+ Thêm Bạn",
+                Text = "+ Thêm Bạn Mới",
                 Height = 40,
                 Dock = DockStyle.Top,
                 BackColor = Color.SeaGreen,
@@ -162,22 +244,35 @@ namespace LocketClient
             };
             btnAddFriend.Click += BtnAddFriend_Click;
 
+            // 2. Panel chứa Lời mời kết bạn (Nằm dưới nút thêm bạn)
+            pnlRequests = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true, // Tự co giãn theo nội dung
+                MinimumSize = new Size(0, 0),
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                BackColor = Color.FromArgb(45, 45, 45)
+            };
+
+            // 3. Danh sách bạn bè (Chiếm phần còn lại)
             listFriends = new ListBox
             {
                 Dock = DockStyle.Fill,
                 Font = new Font("Segoe UI", 11),
-                BackColor = Color.FromArgb(30, 30, 30), // Nền tối
+                BackColor = Color.FromArgb(30, 30, 30),
                 ForeColor = Color.White,
                 BorderStyle = BorderStyle.None
             };
             listFriends.SelectedIndexChanged += ListFriends_SelectedIndexChanged;
 
-            leftPanel.Controls.Add(listFriends);
-            leftPanel.Controls.Add(btnAddFriend);
+            // Thêm theo thứ tự ngược lại của Dock (Fill add trước, Top add sau)
+            leftPanel.Controls.Add(listFriends); // Fill
+            leftPanel.Controls.Add(pnlRequests); // Top (Nằm giữa)
+            leftPanel.Controls.Add(btnAddFriend); // Top (Nằm trên cùng)
 
-            // --- CỘT PHẢI: KHUNG CHAT ---
+            // --- CỘT PHẢI (Giữ nguyên code cũ) ---
             chatAreaPanel = new Panel { Dock = DockStyle.Fill, Visible = false, BackColor = Color.Black };
-
             lblChatHeader = new Label
             {
                 Text = "...",
@@ -192,9 +287,7 @@ namespace LocketClient
             Panel inputArea = new Panel { Dock = DockStyle.Bottom, Height = 50, Padding = new Padding(5), BackColor = Color.FromArgb(30, 30, 30) };
             RoundedButton btnSend = new RoundedButton { Text = "Gửi", Width = 80, Dock = DockStyle.Right, BackColor = Color.Gold };
             txtChatInput = new TextBox { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 12), Multiline = true };
-
             btnSend.Click += BtnSendChat_Click;
-
             inputArea.Controls.Add(txtChatInput);
             inputArea.Controls.Add(btnSend);
 
@@ -205,7 +298,7 @@ namespace LocketClient
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
                 Padding = new Padding(10),
-                BackColor = Color.Black // Nền vùng chat màu đen
+                BackColor = Color.Black
             };
 
             chatAreaPanel.Controls.Add(messageHistoryPanel);
@@ -214,32 +307,74 @@ namespace LocketClient
 
             split.Panel1.Controls.Add(leftPanel);
             split.Panel2.Controls.Add(chatAreaPanel);
-
-            // Label hướng dẫn khi chưa chọn bạn
-            Label lblGuide = new Label
-            {
-                Text = "👈 Chọn bạn để chat",
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.Gray,
-                BackColor = Color.Black
-            };
-            split.Panel2.Controls.Add(lblGuide);
+            split.Panel2.Controls.Add(new Label { Text = "👈 Chọn bạn để chat", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.Gray, BackColor = Color.Black });
 
             tab.Controls.Add(split);
         }
+        // Hàm vẽ 1 dòng lời mời kết bạn
+        private void AddRequestToUI(string phone, string name)
+        {
+            Panel pnlItem = new Panel
+            {
+                Width = 200,
+                Height = 60,
+                BackColor = Color.FromArgb(60, 60, 60),
+                Margin = new Padding(5)
+            };
 
+            Label lblInfo = new Label
+            {
+                Text = $"{name}\n({phone})",
+                ForeColor = Color.Gold,
+                AutoSize = true,
+                Location = new Point(5, 5),
+                Font = new Font("Segoe UI", 9)
+            };
+
+            Button btnAccept = new Button
+            {
+                Text = "Đồng ý",
+                BackColor = Color.Green,
+                ForeColor = Color.White,
+                Location = new Point(5, 30),
+                Size = new Size(190, 25),
+                FlatStyle = FlatStyle.Flat
+            };
+            btnAccept.FlatAppearance.BorderSize = 0;
+
+            btnAccept.Click += async (s, e) =>
+            {
+                // Gọi Server chấp nhận
+                await LoginForm.Connection.InvokeAsync("AcceptFriendRequest", LoginForm.CurrentUser.PhoneNumber, phone);
+                // Xóa dòng này khỏi giao diện ngay
+                pnlRequests.Controls.Remove(pnlItem);
+            };
+
+            pnlItem.Controls.Add(lblInfo);
+            pnlItem.Controls.Add(btnAccept);
+            pnlRequests.Controls.Add(pnlItem);
+        }
         // --- LOGIC KẾT BẠN & CHỌN BẠN ---
         private async void BtnAddFriend_Click(object sender, EventArgs e)
         {
+            // 1. Hiện hộp thoại nhập SĐT
             string phone = Microsoft.VisualBasic.Interaction.InputBox("Nhập số điện thoại người muốn kết bạn:", "Thêm bạn", "");
+
             if (!string.IsNullOrEmpty(phone))
             {
-                if (phone == LoginForm.CurrentUser.PhoneNumber) { MessageBox.Show("Không thể kết bạn với chính mình!"); return; }
+                // 2. Kiểm tra không được tự kết bạn với mình
+                if (phone == LoginForm.CurrentUser.PhoneNumber)
+                {
+                    MessageBox.Show("Không thể kết bạn với chính mình!");
+                    return;
+                }
 
-                bool success = await LoginForm.Connection.InvokeAsync<bool>("AddFriend", LoginForm.CurrentUser.PhoneNumber, phone);
-                if (success) MessageBox.Show("Đã kết bạn thành công!");
-                else MessageBox.Show("Người này không tồn tại hoặc đã là bạn bè.");
+                // 3. GỌI SERVER: Gửi lời mời (Thay vì Add thẳng)
+                // Lưu ý: Kiểu trả về bây giờ là <string> chứ không phải <bool>
+                string result = await LoginForm.Connection.InvokeAsync<string>("SendFriendRequest", LoginForm.CurrentUser.PhoneNumber, phone);
+
+                // 4. Hiện thông báo trả về từ Server (VD: "Đã gửi lời mời", "Người này không tồn tại"...)
+                MessageBox.Show(result);
             }
         }
 
@@ -361,55 +496,100 @@ namespace LocketClient
         // --- FEED & LIKE 1 LẦN ---
         private void AddPostToFeed(Post post)
         {
-            // 1. Tăng chiều cao Card lên để chứa đủ ảnh + nút like + ô chat (500 -> 560)
+            if (feedPanel.InvokeRequired)
+            {
+                feedPanel.Invoke(new Action(() => AddPostToFeed(post)));
+                return;
+            }
+
             Panel card = new Panel
             {
-                Name = post.Id.ToString(), // Để tìm kiếm khi update like
+                Name = post.Id.ToString(),
                 Width = 440,
-                Height = 560,
+                Height = 580, // Tăng chiều cao lên chút cho thoáng (560 -> 580)
                 BackColor = Color.FromArgb(35, 35, 35),
                 Margin = new Padding(0, 0, 0, 20)
             };
 
-            // Header: Tên + Thời gian
-            Label lblHeader = new Label { Text = post.AuthorName, AutoSize = true, Top = 10, Left = 10, Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Color.Gold };
-            Label lblTime = new Label { Text = post.CreatedAt.ToString("HH:mm"), AutoSize = true, Top = 12, Left = 380, Font = new Font("Segoe UI", 9), ForeColor = Color.Gray };
+            // 1. HEADER (TÊN)
+            Label lblHeader = new Label
+            {
+                Text = post.AuthorName,
+                AutoSize = true,
+                Top = 10,
+                Left = 10,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                ForeColor = Color.Gold
+            };
 
-            // Ảnh
-            PictureBox pb = new PictureBox { Top = 40, Left = 10, Width = 420, Height = 320, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.Black };
-            try { pb.Load(post.ImageUrl); } catch { }
+            // 2. NÚT XÓA (Góc Phải trên cùng - Không đụng hàng ai)
+            if (post.AuthorPhone == LoginForm.CurrentUser.PhoneNumber)
+            {
+                Label btnDelete = new Label
+                {
+                    Text = "🗑",
+                    Font = new Font("Segoe UI", 12),
+                    ForeColor = Color.Red,
+                    Top = 10,
+                    Left = 400, // Góc phải
+                    Cursor = Cursors.Hand,
+                    AutoSize = true
+                };
+                btnDelete.Click += async (s, e) =>
+                {
+                    if (MessageBox.Show("Xóa bài này?", "Xác nhận", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                        await LoginForm.Connection.InvokeAsync("DeletePost", post.Id, LoginForm.CurrentUser.PhoneNumber);
+                };
+                card.Controls.Add(btnDelete);
+            }
 
-            // Caption
-            Label lblCap = new Label { Text = post.Caption, Top = 370, Left = 10, Width = 420, Height = 25, Font = new Font("Segoe UI", 10, FontStyle.Italic), ForeColor = Color.WhiteSmoke };
+            // 3. THỜI GIAN (SỬA LẠI: Đưa xuống dưới tên cho đẹp)
+            Label lblTime = new Label
+            {
+                Text = post.CreatedAt.ToString("HH:mm dd/MM"), // Hiện thêm ngày cho chi tiết
+                AutoSize = true,
+                Top = 35, // Dưới tên
+                Left = 10, // Canh trái thẳng hàng với tên
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.Gray
+            };
 
-            // --- PHẦN LIKE (TOGGLE) ---
-            bool isLiked = post.LikedBy.Contains(LoginForm.CurrentUser.PhoneNumber);
+            // 4. ẢNH (SỬA LẠI: Đẩy xuống Top 60 để không đè lên thời gian)
+            PictureBox pb = new PictureBox
+            {
+                Top = 60, // <-- Quan trọng: Đẩy xuống
+                Left = 10,
+                Width = 420,
+                Height = 320,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor = Color.Black
+            };
+            try { if (!string.IsNullOrEmpty(post.ImageUrl)) pb.Load(post.ImageUrl); } catch { }
+
+            // 5. CAPTION
+            Label lblCap = new Label { Text = post.Caption, Top = 390, Left = 10, Width = 420, Height = 25, Font = new Font("Segoe UI", 10, FontStyle.Italic), ForeColor = Color.WhiteSmoke };
+
+            // 6. LIKE
+            bool isLiked = post.LikedBy != null && post.LikedBy.Contains(LoginForm.CurrentUser.PhoneNumber);
             RoundedButton btnLike = new RoundedButton
             {
                 Name = "btnLike",
                 Text = $"❤️ {post.LikeCount}",
-                Top = 400,
+                Top = 420,
                 Left = 10,
                 Width = 80,
                 Height = 35,
-                BackColor = isLiked ? Color.Crimson : Color.Gray, // Đỏ nếu đã like, Xám nếu chưa
+                BackColor = isLiked ? Color.Crimson : Color.Gray,
                 ForeColor = Color.White
             };
+            btnLike.Click += async (s, e) => await LoginForm.Connection.InvokeAsync("ToggleLike", post.Id, LoginForm.CurrentUser.PhoneNumber);
 
-            btnLike.Click += async (s, e) =>
-            {
-                // Gọi hàm ToggleLike (Like/Unlike)
-                await LoginForm.Connection.InvokeAsync("ToggleLike", post.Id, LoginForm.CurrentUser.PhoneNumber);
-            };
-
-            // --- PHẦN NHẮN TIN TRẢ LỜI (REPLY STORY) --- MỚI THÊM LẠI
-
-            // Ô nhập tin nhắn
+            // 7. REPLY UI
             TextBox txtReply = new TextBox
             {
-                Top = 450,
+                Top = 470,
                 Left = 10,
-                Width = 320,
+                Width = 320, // Đẩy xuống theo ảnh
                 PlaceholderText = $"Nhắn cho {post.AuthorName}...",
                 Font = new Font("Segoe UI", 10),
                 BackColor = Color.FromArgb(60, 60, 60),
@@ -417,14 +597,13 @@ namespace LocketClient
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            // Nút Gửi (Mũi tên)
             RoundedButton btnSendReply = new RoundedButton
             {
                 Text = "➤",
-                Top = 447,
+                Top = 467,
                 Left = 340,
                 Width = 80,
-                Height = 30,
+                Height = 30, // Đẩy xuống theo ảnh
                 BackColor = Color.Gold,
                 ForeColor = Color.Black,
                 BorderRadius = 15
@@ -433,34 +612,20 @@ namespace LocketClient
             btnSendReply.Click += async (s, e) =>
             {
                 if (string.IsNullOrWhiteSpace(txtReply.Text)) return;
+                if (post.AuthorPhone == LoginForm.CurrentUser.PhoneNumber) { MessageBox.Show("Không thể tự nhắn!"); return; }
 
-                if (post.AuthorPhone == LoginForm.CurrentUser.PhoneNumber)
-                {
-                    MessageBox.Show("Không thể tự nhắn tin cho chính mình!");
-                    return;
-                }
-
-                // Tạo tin nhắn
-                var msg = new Shared.Message
-                {
-                    FromUser = LoginForm.CurrentUser.PhoneNumber,
-                    SenderName = LoginForm.CurrentUser.FullName,
-                    ToUser = post.AuthorPhone, // Gửi thẳng cho chủ bài viết
-                    Content = $"[Replying Story]: {txtReply.Text}" // Đánh dấu là reply story
-                };
-
-                // Gửi lên Server
+                var msg = new Shared.Message { FromUser = LoginForm.CurrentUser.PhoneNumber, SenderName = LoginForm.CurrentUser.FullName, ToUser = post.AuthorPhone, Content = $"[Replying Story]: {txtReply.Text}" };
                 await LoginForm.Connection.InvokeAsync("SendPrivateMessage", msg);
-
                 MessageBox.Show("Đã gửi tin nhắn!");
                 txtReply.Clear();
             };
 
-            // Thêm tất cả vào Card
             card.Controls.AddRange(new Control[] { lblHeader, lblTime, pb, lblCap, btnLike, txtReply, btnSendReply });
 
             feedPanel.Controls.Add(card);
-            feedPanel.Controls.SetChildIndex(card, 0); // Đẩy bài mới lên đầu
+            feedPanel.Controls.SetChildIndex(card, 0);
+            feedPanel.Invalidate();
+            feedPanel.Update();
         }
 
         private void UpdateLikeUI(Guid postId, int newCount, List<string> likedBy)
@@ -545,5 +710,58 @@ namespace LocketClient
             }
         }
         class UploadResult { public string Url { get; set; } }
+        // Hàm tạo thông báo trôi nổi góc phải màn hình
+        private void ShowInAppNotification(Shared.Message msg)
+        {
+            // 1. Tạo Panel chứa thông báo
+            Panel pnlNotify = new Panel
+            {
+                Size = new Size(320, 70),
+                BackColor = Color.FromArgb(40, 40, 40), // Màu tối sang trọng
+                Location = new Point(this.ClientSize.Width - 330, 10), // Góc trên bên phải
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            // 2. Tạo Label tên người gửi
+            Label lblName = new Label
+            {
+                Text = $"📩 Tin nhắn từ {msg.SenderName}",
+                ForeColor = Color.Gold,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Location = new Point(10, 5),
+                AutoSize = true
+            };
+
+            // 3. Tạo Label nội dung tin nhắn (cắt ngắn nếu dài quá)
+            string shortContent = msg.Content.Length > 35 ? msg.Content.Substring(0, 35) + "..." : msg.Content;
+            Label lblContent = new Label
+            {
+                Text = shortContent,
+                ForeColor = Color.White,
+                Location = new Point(10, 30),
+                AutoSize = true
+            };
+
+            // 4. Thêm Label vào Panel
+            pnlNotify.Controls.Add(lblName);
+            pnlNotify.Controls.Add(lblContent);
+
+            // 5. Thêm Panel vào Form chính
+            this.Controls.Add(pnlNotify);
+            pnlNotify.BringToFront(); // Đưa lên trên cùng đè lên các tab khác
+
+            // 6. Tự động tắt sau 4 giây
+            System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
+            timer.Interval = 4000;
+            timer.Tick += (s, e) =>
+            {
+                this.Controls.Remove(pnlNotify);
+                pnlNotify.Dispose();
+                timer.Stop();
+                timer.Dispose();
+            };
+            timer.Start();
+        }
+
     }
 }
