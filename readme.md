@@ -24,7 +24,7 @@ Hệ thống được thiết kế theo mô hình **Client – Server**, hoạt 
 - Cập nhật bảng tin
 - Nhắn tin
 - Thông báo
-- Tương tác (Like)
+- Tương tác
 
 ---
 
