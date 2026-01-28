@@ -33,7 +33,7 @@ Hệ thống được thiết kế theo mô hình **Client – Server**, hoạt 
 ### 1. Ngôn ngữ & Nền tảng
 
 - **Ngôn ngữ:** C#
-- **Framework:** .NET 10.0
+- **Framework:** .NET 6.0
 
 ### 2. Client
 
