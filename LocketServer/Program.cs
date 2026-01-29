@@ -44,7 +44,7 @@ app.MapPost("/upload", async (IFormFile file) =>
 
     ServerLogger.LogInfo($"File uploaded: {fileName} ({file.Length / 1024} KB)");
 
- 
+
     var url = $"http://{GetLocalIpAddress()}:5000/uploads/{fileName}";
     return Results.Ok(new { Url = url });
 })
@@ -61,18 +61,14 @@ string GetLocalIpAddress()
     var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
     foreach (var ip in host.AddressList)
     {
-
         if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
-            && ip.ToString().StartsWith("192.168.1"))
+            && !System.Net.IPAddress.IsLoopback(ip))
         {
             return ip.ToString();
         }
     }
-
     return "localhost";
 }
-
-
 
 app.UseStaticFiles();
 

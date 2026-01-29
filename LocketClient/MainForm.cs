@@ -161,7 +161,7 @@ namespace LocketClient
                 {
                     // Luôn xử lý chat vào khung
                     ProcessIncomingMessage(msg);
-
+                    
                     if (msg.FromUser != LoginForm.CurrentUser.PhoneNumber)
                     {
 
@@ -402,7 +402,7 @@ namespace LocketClient
             chatAreaPanel.BringToFront();
             lblChatHeader.Text = $"💬 Đang chat với: {name}";
 
-            // --- CẬP NHẬT QUAN TRỌNG: TẢI LỊCH SỬ TIN NHẮN ---
+            // ---  LỊCH SỬ TIN NHẮN ---
 
             // 1. Xóa sạch khung chat cũ
             messageHistoryPanel.Controls.Clear();
